@@ -5,7 +5,7 @@ from django.conf import settings
 
 
 urlpatterns = [
-    
+    path('', views.show_news, name='news'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

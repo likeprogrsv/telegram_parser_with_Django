@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    {% extends 'chat_news/base.html' %}
+
+    {% block content %}    
+    <div class="bottom--divider"></div>
+    <div class="container", style="max-width: 80%" >            
+        <a class="btn btn-dark btn-lg mb-2" role="button" href="{% url 'news' %}">All</a>    
+        {% for tag in tags%} 
+            <a class="btn btn-dark btn-sm mb-2" role="button" href="{% url 'news' %}?curr_tag={{tag}}">{{tag}}</a>                        
+        {% endfor%}            
+        
+    </div>
+    <div class='container' style='max-width: 80%'>
+        <div class='row'>
+            {% for post in posts %}
+            
+                <div class='card rounded-1' style='width: auto; padding: 1em'>
+                    <p class="card-text">
+                        {{post.content}}
+                    </p>
+
+                    {% comment %} <div class='img-text-container card-img-wrap'>
+                        <img class='card-img-top rounded-0' src="{{ photo.image.url }}" alt="Photo">
+                    </div> {% endcomment %}
+                    
+                </div>
+                
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}

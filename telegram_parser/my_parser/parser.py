@@ -3,6 +3,7 @@ import configparser
 # import json
 import os
 from django.conf import settings
+from asgiref.sync import sync_to_async
 
 from telethon.tl.types import MessageMediaPhoto
 from telethon.sync import TelegramClient
@@ -57,21 +58,22 @@ async def get_messages(entity, channel):
         return None
 
     messages = history.messages
-    while len(posts_group) < number_of_posts:
-        for message in messages:
-            if message.message != '':
-                await save_text_and_img(message, channel)
-            elif isinstance(message.media, MessageMediaPhoto):
-                if is_grouped(message):
-                    save_picture(message, channel,
-                                 posts_group[message.grouped_id])
-                else:
-                    if message.grouped_id:
-                        message_media_group[message.grouped_id] = (
-                            [message] if message.grouped_id in
-                            message_media_group else
-                            message_media_group[message.grouped_id].append(
-                                message))
+
+    for message in messages:
+        if len(posts_group) >= number_of_posts:
+            break
+        if message.message != '':
+            await save_text_and_img(message, channel)
+        elif isinstance(message.media, MessageMediaPhoto):
+            if await is_grouped(message):
+                await save_picture(message, channel,
+                                   posts_group[message.grouped_id])
+            else:
+                if message.grouped_id:
+                    if message.grouped_id not in message_media_group:
+                        message_media_group[message.grouped_id] = [message]
+                    else:
+                        message_media_group[message.grouped_id].append(message)
         # all_messages.append(message.to_dict())
     # offset_msg = messages[len(messages) - 1].id
 
@@ -80,18 +82,27 @@ async def get_messages(entity, channel):
 
 
 async def is_grouped(message):
-    return await bool(message.grouped_id in posts_group)
+    return message.grouped_id in posts_group
 
 
 async def save_text_and_img(message, channel):
 
-    if not Post.objects.filter(content=message.message).exists():
-        post = Post.objects.create(
-                content=message.message,
-                post_time=message.date.strftime("%Y-%m-%d %H:%M:%S"),
-                tag=Tag.objects.filter(channel),
-            )
-    if message.grouped_id in message_media_group:
+    @sync_to_async
+    def sync_save_text_and_img(message, channel):
+        if not Post.objects.filter(content=message.message).exists():
+            tag = Tag.objects.get(name=channel)
+            new_post = Post.objects.create(
+                    content=message.message,
+                    post_time=message.date.strftime("%Y-%m-%d %H:%M:%S"),
+                    tag=tag,
+                )
+            return new_post
+        else:
+            return Post.objects.get(content=message.message)
+    post = await sync_save_text_and_img(message, channel)
+
+    if (message.grouped_id in message_media_group and
+            message_media_group[message.grouped_id] is not None):
         for img in message_media_group[message.grouped_id]:
             await save_picture(img, channel, post)
 
@@ -99,27 +110,41 @@ async def save_text_and_img(message, channel):
 
     if message.grouped_id:
         posts_group[message.grouped_id] = post
+    else:
+        posts_group[message.id] = post
 
 
 async def save_picture(message, channel, post):
     if isinstance(message.media, MessageMediaPhoto):
         photo = message.media.photo
         filename = f"{channel}_{message.id}.jpg"
-        if not Picture.objects.filter(image=os.path.join(
-                settings.MEDIA_ROOT, filename)).exists():
-            Picture.objects.create(
-                image=await client.download_media(
-                    photo, file=os.path.join(settings.MEDIA_ROOT, filename)),
-                post=post,
-                tag=Tag.objects.filter(channel),
-                )
+        path = f'{settings.BASE_DIR}/{settings.MEDIA_ROOT}{filename}'
+
+        @sync_to_async
+        def sync_save_picture(channel, post, image_path):
+            if not Picture.objects.filter(image=path).exists():
+                tag = Tag.objects.get(name=channel)
+                Picture.objects.create(
+                    image=image_path,
+                    post=post,
+                    tag=tag,)
+
+        if not os.path.exists(path):
+            img_path = await client.download_media(
+                            photo, file=path)
+            await sync_save_picture(channel, post, img_path)
+        else:
+            await sync_save_picture(channel, post, path)
 
 
 async def main():
     for channel in channels:
         entity = await client.get_entity(channels[channel])
-        # await dump_all_participants(channel)
         await get_messages(entity, channel)
+        global posts_group, message_media_group
+        posts_group = {}
+        message_media_group = {}
+    client.disconnect()
 
 
 def start():
