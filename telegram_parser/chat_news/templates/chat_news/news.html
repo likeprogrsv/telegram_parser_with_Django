@@ -19,21 +19,29 @@
         
     </div>
     <div class='container' style='max-width: 80%'>
-        <div class='row'>
             {% for post in posts %}
             
                 <div class='card rounded-1' style='width: auto; padding: 1em'>
+                    <div class="mb-2 photo--background">
+                        <h4>{{post.post_time}}</h4>
+                        <p class="text-muted">{{post.tag}}</p>
+                    </div>
                     <p class="card-text">
                         {{post.content}}
                     </p>
-
-                    {% comment %} <div class='img-text-container card-img-wrap'>
-                        <img class='card-img-top rounded-0' src="{{ photo.image.url }}" alt="Photo">
-                    </div> {% endcomment %}
-                    
+                    <div class="row justify-content-md-center">
+                        {% for img in imgs %}
+                            {% if img.post.id == post.id %}
+                                <div class='colcol-md-4 mb-2' style='max-width: 50%; padding: 1em'>
+                                    <div class='img-text-container card-img-wrap'>
+                                        <img class='card-img-top rounded-0' src="{{ img.image.url }}" alt="Photo">
+                                    </div>
+                                    <script>console.log('{{ img.image.url }}')</script>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
                 </div>
-                
             {% endfor %}
-        </div>
     </div>
 {% endblock %}
